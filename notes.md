@@ -88,3 +88,92 @@ The execution continues until it reaches the `END` node.
 This waits for each step to complete before moving to the next.
 
 It returns the final state of the graph after all nodes have executed.
+
+## Chains
+
+We can combine 4 Concepts:
+
+- Chat messages as our graph state
+- Chat Models at our graph nodes
+- Binding tools to our chat model
+- Executing tool calls in graph nodes
+
+### Messages
+
+Chat models can use [`messages`](https://python.langchain.com/v0.2/docs/concepts/#messages), which capture different roles within a conversation.
+
+LangChain supports various message types, including `HumanMessage`, `AIMessage`, `SystemMessage`, and `ToolMessage`.
+
+These represent a message from the user, from chat model, for the chat model to instruct behavior, and from a tool call.
+
+Let's create a list of messages.
+
+Each message can be supplied with a few things:
+
+- `content` - content of the message
+- `name` - optionally, a message author
+- `response_metadata` - optionally, a dict of metadata (e.g., often populated by model provider for `AIMessages`)
+
+### Chat Models
+
+[Chat models](https://python.langchain.com/v0.2/docs/concepts/#chat-models) can use a sequence of message as input and support message types, as discussed above.
+
+There are [many](https://python.langchain.com/v0.2/docs/concepts/#chat-models) to choose from! Let's work with OpenAI.
+
+We can load a chat model and invoke it with out list of messages.
+
+We can see that the result is an `AIMessage` with specific `response_metadata`.
+
+### Tools
+
+Tools are useful whenever you want a model to interact with external systems.
+
+External systems (e.g., APIs) often require a particular input schema or payload, rather than natural language.
+
+When we bind an API, for example, as a tool we given the model awareness of the required input schema.
+
+The model will choose to call a tool based upon the natural language input from the user.
+
+And, it will return an output that adheres to the tool's schema.
+
+[Many LLM providers support tool calling](https://python.langchain.com/v0.1/docs/integrations/chat/) and [tool calling interface](https://blog.langchain.dev/improving-core-tool-interfaces-and-docs-in-langchain/) in LangChain is simple.
+
+You can simply pass any Python `function` into `ChatModel.bind_tools(function)`.
+
+![Screenshot 2024-08-19 at 7.46.28 PM.png](https://cdn.prod.website-files.com/65b8cd72835ceeacd4449a53/66dbab08dc1c17a7a57f9960_chain2.png)
+
+### Using Messages as Graph State
+
+With these foundations in place, we can now use [`messages`](https://python.langchain.com/v0.2/docs/concepts/#messages) in our graph state.
+
+`messages` is simply a list of messages, as we defined above (e.g., `HumanMessage`, etc).
+
+#### Reducers
+
+As we discussed, each node will return a new value for our state key `messages`.
+
+But, this new value will [will override](https://langchain-ai.github.io/langgraph/concepts/low_level/#reducers) the prior `messages` value.
+
+As our graph runs, we want to **append** messages to to our `messages` state key.
+
+We can use [reducer functions](https://langchain-ai.github.io/langgraph/concepts/low_level/#reducers) address this.
+
+Reducers allow us to specify how state updates are performed.
+
+If no reducer function is specified, then it is assumed that updates to the key should _override it_ as we saw before.
+
+But, to append messages, we can use the pre-built `add_messages` reducer.
+
+This ensures that any messages are appended to the existing list of messages.
+
+We annotate simply need to annotate our `messages` key with the `add_messages` reducer function as metadata.
+
+Since having a list of messages in graph state is so common, LangGraph has a pre-built [`MessagesState`](https://langchain-ai.github.io/langgraph/concepts/low_level/#messagesstate)!
+
+`MessagesState` is defined:
+
+- With a pre-build single `messages` key
+- This is a list of `AnyMessage` objects
+- It uses the `add_messages` reducer
+
+We'll usually use `MessagesState` because it is less verbose than defining a custom `TypedDict`, as shown above.
